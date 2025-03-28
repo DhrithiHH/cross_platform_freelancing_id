@@ -1,0 +1,27 @@
+{
+  "name": "backend-scraper",
+  "version": "1.0.0",
+  "main": "ipfs.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@metamask/sdk": "^0.32.1",
+    "axios": "^1.8.4",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.5",
+    "express": "^4.21.2",
+    "ipfs-http-client": "^60.0.1",
+    "puppeteer": "^24.4.0",
+    "puppeteer-core": "^24.4.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "description": ""
+}
