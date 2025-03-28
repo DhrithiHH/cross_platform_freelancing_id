@@ -59,8 +59,7 @@ async function scrapeFiverrProfile(profileUrl) {
 
   try {
     browser = await puppeteer.launch({
-      headless: false,
-      executablePath: "C:\\Users\\dhrit\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe",
+      headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
