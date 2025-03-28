@@ -59,9 +59,11 @@ async function scrapeFiverrProfile(profileUrl) {
 
   try {
     browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+        headless: true,
+        executablePath: puppeteer.executablePath(), // Use Puppeteer's bundled Chrome
+        args: ["--no-sandbox", "--disable-setuid-sandbox"]
+      });
+      
 
     console.log("✅ Puppeteer launched successfully");
 
