@@ -5,6 +5,7 @@ import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import axios from "axios"; // For Pinata API
 import dotenv from "dotenv";
+import crypto from "crypto"; // For hashing
 
 // Load environment variables
 dotenv.config();
@@ -25,16 +26,30 @@ if (!process.env.PINATA_API_KEY || !process.env.PINATA_SECRET_API_KEY) {
   process.exit(1);
 }
 
-// Function to store JSON data on Pinata
-async function storeDataOnIPFS(data) {
-  try {
-    const jsonData = JSON.stringify(data);
+// In-memory storage for metadata hashes (Use a database in production)
+const uploadedMetadata = new Map(); // { hash: CID }
 
+// Function to generate SHA-256 hash of JSON data
+function generateHash(data) {
+  return crypto.createHash("sha256").update(JSON.stringify(data)).digest("hex");
+}
+
+// Function to store JSON data on Pinata (with duplicate prevention)
+async function storeDataOnIPFS(data, metadataName) {
+  const dataHash = generateHash(data);
+
+  // Check if the metadata already exists
+  if (uploadedMetadata.has(dataHash)) {
+    console.log(`⚠️ Duplicate detected (${metadataName}). Returning existing CID.`);
+    return uploadedMetadata.get(dataHash); // Return existing CID
+  }
+
+  try {
     const response = await axios.post(
       "https://api.pinata.cloud/pinning/pinJSONToIPFS",
       {
         pinataContent: data,
-        pinataMetadata: { name: "FiverrProfileData" },
+        pinataMetadata: { name: metadataName },
       },
       {
         headers: {
@@ -45,9 +60,12 @@ async function storeDataOnIPFS(data) {
       }
     );
 
-    return response.data.IpfsHash; // CID of the uploaded data
+    const cid = response.data.IpfsHash;
+    uploadedMetadata.set(dataHash, cid); // Store the new hash-CID pair
+
+    return cid; // Return new CID
   } catch (error) {
-    console.error("❌ Pinata Upload Error:", error.response?.data || error.message);
+    console.error(`❌ Pinata Upload Error (${metadataName}):`, error.response?.data || error.message);
     return null;
   }
 }
@@ -158,12 +176,37 @@ app.post("/scrape", async (req, res) => {
     return res.status(500).json({ error: "❌ Failed to scrape Fiverr profile" });
   }
 
-  const ipfsCID = await storeDataOnIPFS(scrapedData);
-  if (!ipfsCID) {
-    return res.status(500).json({ error: "❌ Failed to upload data to IPFS" });
+  // Upload each gig separately to IPFS (with duplicate prevention)
+  let gigCIDs = [];
+  for (const gig of scrapedData.gigs) {
+    const gigCID = await storeDataOnIPFS(gig, `Gig-${gig.title}`);
+    if (gigCID) {
+      gigCIDs.push({ gigTitle: gig.title, cid: gigCID, ipfsUrl: `https://gateway.pinata.cloud/ipfs/${gigCID}` });
+    }
   }
 
-  return res.json({ success: true, cid: ipfsCID, ipfsUrl: `https://gateway.pinata.cloud/ipfs/${ipfsCID}` });
+  // Store main profile data with gig CIDs
+  const profileData = {
+    publicName: scrapedData.publicName,
+    username: scrapedData.username,
+    gigTitle: scrapedData.gigTitle,
+    reviewsCount: scrapedData.reviewsCount,
+    skills: scrapedData.skills,
+    projects: scrapedData.projects,
+    gigs: gigCIDs, // Store only the CIDs here
+  };
+
+  const profileCID = await storeDataOnIPFS(profileData, "FiverrProfile");
+  if (!profileCID) {
+    return res.status(500).json({ error: "❌ Failed to upload profile data to IPFS" });
+  }
+
+  return res.json({ 
+    success: true, 
+    profileCID, 
+    profileIpfsUrl: `https://gateway.pinata.cloud/ipfs/${profileCID}`,
+    gigs: gigCIDs 
+  });
 });
 
 // Start the Express server
